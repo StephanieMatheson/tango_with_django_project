@@ -11,33 +11,32 @@ from rango.forms import UserProfileForm
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
+from datetime import datetime
 
 
 
-
-def index(request): 
-	# Query the database for a list of ALL categories currently stored. 
-	# Order the categories by the number of likes in descending order. 
-	# Retrieve the top 5 only -- or all if less than 5. 
-	# Place the list in our context_dict dictionary (with our boldmessage!) 
-	# that will be passed to the template engine.
+def index(request):
 	category_list = Category.objects.order_by('-likes')[:5]
-	pages_list = Page.objects.order_by('-views')[:5]
-
-	context_dict = {}
-	context_dict['boldmessage'] = 'Crunchy, creamy, cookie, candy, cupcake!'
-	context_dict['categories'] = category_list
-	context_dict['pages'] = pages_list
-
-	# Render the response and send it back!
+	page_list = Page.objects.order_by('-views')[:5]
+	
+	context_dict = {} 
+	context_dict['boldmessage'] = 'Crunchy, creamy, cookie, candy, cupcake!' 
+	context_dict['categories'] = category_list 
+	context_dict['pages'] = page_list
+	
+	visitor_cookie_handler(request) 
+	
 	return render(request, 'rango/index.html', context=context_dict)
-
+	
 	
 def about(request): 
 # Construct a dictionary to pass to the template engine as its context. 
 # Note the key boldmessage matches to {{ boldmessage }} in the template! 
 	context_dict = {'boldmessage': 'This tutorial has been put together by Stephanie Matheson'}
-
+	
+	visitor_cookie_handler(request)
+	context_dict['visits'] = request.session['visits']
+	
 # Return a rendered response to send to the client. 
 # We make use of the shortcut function to make our lives easier. 
 # Note that the first parameter is the template we wish to use. 
@@ -240,3 +239,30 @@ def user_logout(request):
 	logout(request)
 	# Take the user back to the homepage.
 	return redirect(reverse('rango:index'))
+	
+# A helper method 
+def get_server_side_cookie(request, cookie, default_val=None):
+	val = request.session.get(cookie)
+	if not val:
+		val = default_val
+	return val
+	
+# Updated the function definition
+def visitor_cookie_handler(request):
+	visits = int(get_server_side_cookie(request, 'visits', '1'))
+	last_visit_cookie = get_server_side_cookie(request, 'last_visit',
+												str(datetime.now())) 
+	last_visit_time = datetime.strptime(last_visit_cookie[:-7],
+										'%Y-%m-%d %H:%M:%S')
+										
+	# If it's been more than a day since the last visit... 
+	if (datetime.now() - last_visit_time).days > 0:
+		visits = visits + 1
+		# Update the last visit cookie now that we have updated the count 
+		request.session['last_visit'] = str(datetime.now())
+	else:
+		# Set the last visit cookie
+		request.session['last_visit'] = last_visit_cookie
+		
+	# Update/set the visits cookie
+	request.session['visits'] = visits
